@@ -1,0 +1,202 @@
+#!/bin/bash
+set -e
+
+## ========================================================================================
+## Jailer environment
+## ========================================================================================
+if [[ -e /etc/default/jailer ]]; then
+  . /etc/default/jailer
+fi
+export JAILER_HOME=${JAILER_HOME:-"/tmp/jailer"}
+[[ -e "$JAILER_HOME" ]] || mkdir -p $JAILER_HOME
+
+## ========================================================================================
+## Print a warning message to stderr
+## ========================================================================================
+function warn() {
+  echo "$@" >&2
+}
+
+## ========================================================================================
+## Print a warning message to stderr then terminates as an error
+## ========================================================================================
+function fail() {
+  echo "$@" >&2
+  return 1
+}
+
+## ========================================================================================
+## Prints the usage to stderr then terminates as an error
+## ========================================================================================
+function useage() {
+  echo -n "Usage: jailer <cmd> <args>*
+
+Commands:
+list                  # List all jails
+create <name> <img>   # Create new jail <name> based off <img>
+delete <name>         # Delete jail <name>
+<name>                # Switch to jail <name>
+<name> <cmd> <arg>*   # Run <cmd> within the jail <name>, passing <arg>
+" >&2
+  return 1
+}
+
+## ========================================================================================
+## Returns the path to the given jail.  This command does not verify if the path exists,
+## just returns what it should be.
+##
+## Args:
+## $1 = jail name
+##
+## Response:
+## jail_path = jail path
+## ========================================================================================
+function jailPath() {
+  local jail=$1 ; shift
+  jail_path="$JAILER_HOME/$jail"
+}
+
+## ========================================================================================
+## Check to see if the given path exists
+##
+## Args:
+## $1 = path to check if exists
+## ========================================================================================
+function checkPathExist() {
+  local path=$1 ; shift
+  [[ -e "$path" ]] || fail "$path does not exist"
+}
+
+## ========================================================================================
+## Check to see if the given jail exists
+##
+## Args:
+## $1 = jail name
+## ========================================================================================
+function checkJailExist() {
+  local name=$1 ; shift
+  jailPath $name
+  [[ -e "$jail_path" ]] || fail "Jail $name does not exist"
+}
+
+## ========================================================================================
+## Check if the command can run on this environment
+## ========================================================================================
+function checkCanRun() {
+  local os=$(uname)
+  case "$os" in
+    Linux)
+      return 0
+      ;;
+    *)
+      fail "Unsupported OS: $os"
+      ;;
+  esac
+}
+
+## ========================================================================================
+## Check if current user is root.  If not, then returns an error
+## ========================================================================================
+function checkRoot() {
+  [[ "$(id -u)" -eq 0 ]] || fail "Command must run as root"
+}
+
+## ========================================================================================
+## Create the given jail.  If unable to (exists, permissions) returns an error.
+##
+## Args:
+## $1 = name
+## $2 = path to img
+## ========================================================================================
+function create() {
+  checkRoot
+  [[ $# -lt 2 ]] && useage
+  local name=$1
+  local imgPath=$2
+
+  # verify jail doesn't exist, and img path exists
+  jailPath $name
+  [[ -e "$jail_path" ]] && fail "$name already exists."
+  checkPathExist $imgPath 
+
+  # make jail path
+  mkdir -p $jail_path
+  echo "Extracting image $imgPath..."
+  tar zxfC $imgPath $jail_path || rm -rf $jail_path && fail "Unable to extract $imgPath"
+}
+
+## ========================================================================================
+## Delete the given jail.  If the jail does not exist, this command will return normally.
+##
+## Args:
+## $1 = name
+## ========================================================================================
+function delete() {
+  checkRoot
+  [[ $# -lt 1 ]] && useage
+  local name=$1
+
+  jailPath $name
+  if [[ -e "$jail_path" ]]; then
+    rm -rf $jail_path
+  fi
+}
+
+## ========================================================================================
+## List all jails under the $JAILER_HOME path.
+## ========================================================================================
+function list() {
+  ls $JAILER_HOME
+}
+
+## ========================================================================================
+## Switch into the jail
+##
+## Args:
+## $1 = name
+## $@ = additional args or command to run
+## ========================================================================================
+function jail() {
+  checkRoot
+  [[ $# -lt 1 ]] && useage
+  local name=$1 ; shift
+
+  checkJailExist $name
+
+  chroot $jail_path $@
+}
+
+## ========================================================================================
+## Attempts to run the user's command
+## ========================================================================================
+function run() {
+  # at min 1 argument must be passed to switch to the root
+  [[ $# -lt 1 ]] && useage
+
+  local cmd=$1 ; shift
+  case "$cmd" in
+    create)
+      create $@
+      ;;
+    delete)
+      delete $@
+      ;;
+    list)
+      list $@
+      ;;
+    *)
+      jail $cmd $@
+      ;;
+  esac
+}
+
+## ========================================================================================
+## Main entry point for the jailer command
+## ========================================================================================
+function main() {
+  #checkCanRun
+
+  run $@
+}
+
+main $@

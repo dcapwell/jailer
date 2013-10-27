@@ -122,7 +122,12 @@ function create() {
   # make jail path
   mkdir -p $jail_path
   echo "Extracting image $imgPath..."
-  tar zxfC $imgPath $jail_path || rm -rf $jail_path && fail "Unable to extract $imgPath"
+  if tar zxfC $imgPath $jail_path ; then
+    echo "Jail $name created"
+  else
+    rm -rf $jail_path
+    fail "Unable to extract $imgPath"
+  fi
 }
 
 ## ========================================================================================

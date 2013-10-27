@@ -1,12 +1,10 @@
-Jailer
-======
+# Jailer
 
 Simple command line to create jailed environments for processes to live in.
 
 Currently only linux systems are supported
 
-Commands
-========
+## Commands
 
    * Create jail
 

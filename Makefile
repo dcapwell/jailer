@@ -1,7 +1,7 @@
 all: clean tar deb osxpkg rpm
 
 clean:
-	rm jailer*
+	rm -f jailer*
 
 tar:
 	fpm -s dir -t tar -n "jailer" -v "0.0.1" bin/ etc/

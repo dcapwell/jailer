@@ -199,7 +199,7 @@ function run() {
 ## Main entry point for the jailer command
 ## ========================================================================================
 function main() {
-  #checkCanRun
+  checkCanRun
 
   run $@
 }

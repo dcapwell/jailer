@@ -22,4 +22,4 @@ deb:
 	fpm -s dir -t deb $(ALL) $(DIRS)
 
 rpm:
-	fpm -s dir -t rpm $(ALL) $(DIRS)
+	fpm -s dir -t rpm $(ALL) --rpm-os linux $(DIRS)

@@ -1,0 +1,62 @@
+#!/bin/bash
+set -e
+
+arch=$(uname -p)
+
+## ========================================================================================
+## Print a warning message to stderr then terminates as an error
+## ========================================================================================
+function fail() {
+  echo "$@" >&2
+  return 1
+}
+
+
+function ubuntu() {
+  ## check for ubuntu release version
+  local code_name=$(awk '/DISTRIB_CODENAME/{split($0, a, "="); print a[2]}' /etc/*release*)
+  local root_path=/tmp/chroot/ubuntu/$code_name/$arch
+  mkdir -p $root_part
+
+  ## install the tools to setup chroot
+  apt-get install dchroot debootstrap
+
+  ## tell schroot what to do
+  tee -a /etc/schroot/schroot.conf <<EOF > /dev/null
+[$code_name]
+description=Ubuntu $code_name
+location=$root_path
+priority=3
+users=$USER
+groups=sbuild
+root-groups=root
+EOF
+
+  ## setup base image
+  sudo debootstrap --variant=buildd --arch $arch $code_name $root_path http://mirror.pnl.gov/ubuntu/
+
+  ## outside of chroot, create image
+  ( cd $root_path ; sudo tar zcvf ~/linux-ubuntu-$code_name-$arch.tgz . > /dev/null )
+  rm -rf $root_path
+}
+
+function main() {
+  [[ "$(id -u)" -eq 0 ]] || fail "Command must run as root"
+
+  case "$(cat /etc/*release*)" in
+    *Ubuntu*)
+      ubuntu $@
+      ;;
+    *CentOS*)
+      echo "CentOS"
+      ;;
+    *)
+      fail "Unsupported OS: $(cat /etc/*release*)"
+      ;;
+  esac
+
+  local distro=$(awk '/DISTRIB_ID/{split($0,a,"="); print a[2]}' /etc/*release*)
+}
+
+main $@
+
